@@ -182,7 +182,6 @@ def contrastive_round(
             neptune_run["simclr/loss"].append(simclr_loss.item())
             
         collected_data[-1].append( (details, positives.reshape(-1).tolist()) )
-        print(collected_data)
         
 
 def main(args):
@@ -234,24 +233,25 @@ def main(args):
 
 
     for epoch in tqdm(range(start_epoch, args.epochs+1), desc='[Main Loop]'):
+
         print(f'EPOCH:{epoch}')
         
-        # contrastive_round(
-        #     encoder=encoder,
-        #     epoch=epoch,
-        #     args=args,
-        #     optimizer=simclr_optimizer, 
-        #     criterion=simclr_criterion, 
-        #     neptune_run=neptune_run,
-        #     device=device,
-        #     collected_data=collected_data
-        # )
+        contrastive_round(
+            encoder=encoder,
+            epoch=epoch,
+            args=args,
+            optimizer=simclr_optimizer, 
+            criterion=simclr_criterion, 
+            neptune_run=neptune_run,
+            device=device,
+            collected_data=collected_data
+        )
         
 
-        # if  ((args.dataset in ['cifar10', 'svhn']) and epoch % 1 == 0) or \
-        #     ((args.dataset in ['cifar100', 'TinyImagenet', 'stl10']) and epoch % 5 == 0):
-        #     test_acc = knn_evaluation(encoder, args)
-        #     neptune_run["linear_eval/test_acc"].append(test_acc)
+        if  ((args.dataset in ['cifar10', 'svhn']) and epoch % 1 == 0) or \
+            ((args.dataset in ['cifar100', 'TinyImagenet', 'stl10']) and epoch % 5 == 0):
+            test_acc = knn_evaluation(encoder, args)
+            neptune_run["linear_eval/test_acc"].append(test_acc)
 
         
         
@@ -312,7 +312,7 @@ if __name__ == "__main__":
     parser.add_argument('--warmup_epochs', type=int, default=10, help='Number of warm-up epochs')
 
     parser.add_argument('--simclr_iterations', type=str, default='all', help='Iterations for SimCLR training')
-    parser.add_argument('--simclr_bs', type=int, default=4, help='Batch size for SimCLR training')
+    parser.add_argument('--simclr_bs', type=int, default=512, help='Batch size for SimCLR training')
     parser.add_argument('--encoder_backbone', type=str, default='resnet50', choices=['resnet18', 'resnet50'], help='Encoder backbone architecture')
     parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'svhn', 'TinyImagenet', 'cifar100', 'stl10'], help='Pretraining dataset')
 

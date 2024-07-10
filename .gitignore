@@ -1,3 +1,5 @@
 dataset
 params
+jobs_logs
 __pycache__/
+.neptune
