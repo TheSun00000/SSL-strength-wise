@@ -227,7 +227,7 @@ class RandomAugmentation(object):
             level = random.random()
             
             img = apply_augment(img, name, level)
-            transformations_details.append( (name, level) )
+            transformations_details.append( (name[:3], round(level,2)) )
             
         return img, transformations_details
 
