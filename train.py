@@ -180,8 +180,11 @@ def contrastive_round(
         # logs:            
         if (len(train_loader) < 10) or (it % (len(train_loader) // 10) == 0):
             neptune_run["simclr/loss"].append(simclr_loss.item())
-            
-        collected_data[-1].append( (details, positives.reshape(-1).tolist()) )
+        
+        
+        positives = positives.reshape(-1).tolist()
+        positives = [round(n,2) for n in positives]
+        collected_data[-1].append( (details, positives) )
         
 
 def main(args):
