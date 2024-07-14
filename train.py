@@ -89,7 +89,6 @@ def adjust_learning_rate(
         param_group['lr'] = lr
     return lr
 
-
 def init(args, neptune_run, device):
     
     start_epoch = 1
@@ -134,7 +133,6 @@ def contrastive_round(
         epoch: int,
         neptune_run,
         device,
-        collected_data:list
     ):
     
     batch_size = args.simclr_bs
@@ -148,7 +146,7 @@ def contrastive_round(
     tqdm_train_loader = tqdm(enumerate(train_loader), total=len(train_loader), desc='[contrastive_round]')
     # tqdm_train_loader = enumerate(train_loader)
     
-    collected_data.append([])
+    collected_data = []
     
     encoder.train()
     for it, (x1, x2, y, details) in tqdm_train_loader:
@@ -184,9 +182,18 @@ def contrastive_round(
         
         positives = positives.reshape(-1).tolist()
         positives = [round(n,2) for n in positives]
-        collected_data[-1].append( (details, positives) )
+        collected_data.append( (details, positives) )
         
-
+        
+    with open(f'{args.model_save_path}/collected_data.txt', 'a') as file:
+        for details, positives in collected_data:
+            for (details_1, details_2), sim in zip(details, positives):
+                details_1 = ' '.join(f'{trans} {val}' for trans, val in details_1)
+                details_2 = ' '.join(f'{trans} {val}' for trans, val in details_2)
+                file.write(f'{details_1},{details_2},{sim}\n')
+        file.write('\n\n\n\n\n\n\n')
+                
+                        
 def main(args):
     
     
@@ -232,8 +239,6 @@ def main(args):
 
     encoder, simclr_optimizer, simclr_criterion, start_epoch = init(args, neptune_run, device)
 
-    collected_data = []
-
 
     for epoch in tqdm(range(start_epoch, args.epochs+1), desc='[Main Loop]'):
 
@@ -247,7 +252,6 @@ def main(args):
             criterion=simclr_criterion, 
             neptune_run=neptune_run,
             device=device,
-            collected_data=collected_data
         )
         
 
@@ -267,24 +271,20 @@ def main(args):
             os.mkdir(f'{model_save_path}/epoch_{epoch}/')
             torch.save(encoder.state_dict(), f'{model_save_path}/epoch_{epoch}/encoder.pt')
             torch.save(simclr_optimizer.state_dict(), f'{model_save_path}/epoch_{epoch}/encoder_opt.pt')
-            with open(f'{model_save_path}/epoch_{epoch}/collected_data', 'wb') as file:
-                pickle.dump(collected_data, file)
             
             neptune_run[f"params/epoch_{epoch}/encoder"].upload(f'{model_save_path}/epoch_{epoch}/encoder.pt')
             neptune_run[f"params/epoch_{epoch}/encoder_opt"].upload(f'{model_save_path}/epoch_{epoch}/encoder_opt.pt')
-            neptune_run[f"params/epoch_{epoch}/collected_data"].upload(f'{model_save_path}/epoch_{epoch}/collected_data')
+            neptune_run[f"params/epoch_{epoch}/collected_data"].upload(f'{model_save_path}/epoch_{epoch}/collected_data.txt')
         
         
         if (epoch % 10 == 0) or (epoch == args.epochs):
             torch.save(encoder.state_dict(), f'{model_save_path}/encoder.pt')
             torch.save(simclr_optimizer.state_dict(), f'{model_save_path}/encoder_opt.pt')
-            with open(f'{model_save_path}/collected_data', 'wb') as file:
-                pickle.dump(collected_data, file)
         
         if  (epoch % (args.epochs // 4) == 0) or (epoch == args.epochs):
             neptune_run["params/encoder"].upload(f'{model_save_path}/encoder.pt')
             neptune_run["params/encoder_opt"].upload(f'{model_save_path}/encoder_opt.pt')
-            neptune_run["params/collected_data"].upload(f'{model_save_path}/collected_data')
+            neptune_run["params/collected_data"].upload(f'{model_save_path}/collected_data.txt')
     
     
     if isinstance(encoder, torch.nn.DataParallel):
