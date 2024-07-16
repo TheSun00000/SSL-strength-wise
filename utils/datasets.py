@@ -7,6 +7,8 @@ from utils.transforms import (
     apply_transformations,
     get_transforms_list,
     RandomAugmentation,
+    CustomRandomResizedCrop,
+    CustomRandomHorizontalFlip
 )
 
 import random
@@ -16,6 +18,8 @@ device
 
 
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
 import numpy as np
 
 def denormalize(tensor, mean, std):
@@ -26,7 +30,7 @@ def denormalize(tensor, mean, std):
     return denormalized_tensor
 
 
-def plot_images_stacked(tensor1, tensor2):
+def plot_images_stacked(tensor1, tensor2, points=None):
     
     _, _, h, w = tensor1.shape
     
@@ -52,11 +56,23 @@ def plot_images_stacked(tensor1, tensor2):
         axes[0, image_index].imshow(image_data)
         axes[0, image_index].axis('off')
 
-    # Plot images from the second tensor
-    for image_index in range(tensor2.shape[0]):
-        image_data = tensor2[image_index].permute(1, 2, 0)  # Transpose to (32, 32, 3) for RGB
-        axes[1, image_index].imshow(image_data)
-        axes[1, image_index].axis('off')
+    
+    if points is not None:
+        # Plot images from the second tensor
+        for image_index, point in zip(range(tensor2.shape[0]), points):
+            image_data = tensor2[image_index].permute(1, 2, 0)  # Transpose to (32, 32, 3) for RGB
+            axes[1, image_index].imshow(image_data)
+            axes[1, image_index].axis('off')
+            
+            # Draw points (top, left, bottom, right) on image_data
+            top, left, bottom, right = point
+            rect = patches.Rectangle((left, top), right - left, bottom - top, linewidth=2, edgecolor='r', facecolor='none')
+            axes[1, image_index].add_patch(rect)
+    else:
+        for image_index in range(tensor2.shape[0]):
+            image_data = tensor2[image_index].permute(1, 2, 0)  # Transpose to (32, 32, 3) for RGB
+            axes[1, image_index].imshow(image_data)
+            axes[1, image_index].axis('off') 
 
     plt.show()
 
@@ -77,12 +93,15 @@ def collate_fn(img1_img2_y_details):
 
 
 class MyDataset(Dataset):
-    def __init__(self, train_dataset, args, transform=True, normalize=None, random_resized_crop=None):
+    def __init__(self, train_dataset, args, transform=True, normalize=None, crop_params=None):
                 
         self.train_dataset = train_dataset
         self.transform = transform
         
         self.random_policy = RandomAugmentation(N=2, pr=0.8)
+        self.random_crop = CustomRandomResizedCrop(crop_params['size'], scale=crop_params['scale'])
+        self.random_flip = CustomRandomHorizontalFlip(p=0.0)
+        
         # self.random_policy = transforms.Compose([
         #     transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
         #     transforms.RandomGrayscale(p=0.2),
@@ -90,8 +109,6 @@ class MyDataset(Dataset):
         # ])        
         
         self.last_transform = transforms.Compose([
-            random_resized_crop,
-            transforms.RandomHorizontalFlip(p=0.5),
             transforms.ToTensor(),
             normalize
         ])
@@ -111,11 +128,20 @@ class MyDataset(Dataset):
         img1, img2 = img.copy(), img.copy()
         
         img1, img1_details = self.random_policy(img1)
-        img2, img2_details = self.random_policy(img2)  
-        
+        img1, img1_crop_details = self.random_crop(img1)
+        img1, img1_flip_details = self.random_flip(img1)
         img1 = self.last_transform(img1)
+        
+        img2, img2_details = self.random_policy(img2)
+        img2, img2_crop_details = self.random_crop(img2)
+        img2, img2_flip_details = self.random_flip(img2)
         img2 = self.last_transform(img2)
-
+        
+        img1_details = img1_details + [('crop', img1_crop_details), ('flip', img1_flip_details)]
+        img2_details = img2_details + [('crop', img2_crop_details), ('flip', img2_flip_details)]
+        
+        # print(img1_details)
+        
         y = torch.tensor(y, dtype=torch.long).unsqueeze(0)
         
         return img1, img2, y, (img1_details, img2_details)
@@ -126,7 +152,7 @@ def get_dataloader(args, batch_size, transform=True):
     
     if args.dataset in ['cifar10', 'svhn', 'cifar100'] :
         normalize = transforms.Normalize([0.4914, 0.4822, 0.4465], [0.2023, 0.1994, 0.2010])
-        random_resized_crop = transforms.RandomResizedCrop(32, scale=(0.2, 1.))
+        random_resized_crop = {'size':32, 'scale':(0.2, 1.)}
         
         if args.dataset == 'cifar10':
             dataset = torchvision.datasets.CIFAR10('./dataset/cifar10/')
@@ -139,10 +165,10 @@ def get_dataloader(args, batch_size, transform=True):
         normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         
         if args.dataset == 'TinyImagenet':
-            random_resized_crop = transforms.RandomResizedCrop(64, scale=(0.2, 1.))
+            random_resized_crop = {'size':64, 'scale':(0.2, 1.)}
             dataset = torchvision.datasets.ImageFolder('dataset/tiny-imagenet-200/train')
         elif args.dataset == 'stl10':
-            random_resized_crop = transforms.RandomResizedCrop(96, scale=(0.2, 1.))
+            random_resized_crop = {'size':96, 'scale':(0.2, 1.)}
             dataset = torchvision.datasets.STL10('./dataset/STL10/', split='train+unlabeled')
             # dataset = torchvision.datasets.STL10('./dataset/STL10/', split='train')
 
@@ -151,7 +177,7 @@ def get_dataloader(args, batch_size, transform=True):
         args=args,
         transform=transform,
         normalize=normalize,
-        random_resized_crop=random_resized_crop,
+        crop_params=random_resized_crop,
     )
     
     

@@ -127,6 +127,7 @@ def init(args, neptune_run, device):
 
 def contrastive_round(
         encoder: SimCLR,
+        train_loader,
         optimizer: torch.optim.Optimizer,
         criterion: torch.nn.Module,
         args,
@@ -137,11 +138,6 @@ def contrastive_round(
     
     batch_size = args.simclr_bs
     
-    train_loader = get_dataloader(
-        args=args,
-        batch_size=batch_size,
-    )
-    
     print('[contrastive_round]')
     tqdm_train_loader = tqdm(enumerate(train_loader), total=len(train_loader), desc='[contrastive_round]')
     # tqdm_train_loader = enumerate(train_loader)
@@ -151,6 +147,12 @@ def contrastive_round(
     encoder.train()
     for it, (x1, x2, y, details) in tqdm_train_loader:
         
+        # points = []
+        # for i in range(len(details)):
+        #     box = [ details[i][1][j][1] for j in range(len(details[i][1])) if 'crop' in details[i][1][j] ][0]
+        #     print(box)
+        #     points.append(box)
+        # plot_images_stacked(x1, x2, points)
         # plot_images_stacked(x1, x2)
         
         lr = adjust_learning_rate(epochs=args.epochs,
@@ -239,6 +241,10 @@ def main(args):
 
     encoder, simclr_optimizer, simclr_criterion, start_epoch = init(args, neptune_run, device)
 
+    train_loader = get_dataloader(
+        args=args,
+        batch_size=args.simclr_bs,
+    )
 
     for epoch in tqdm(range(start_epoch, args.epochs+1), desc='[Main Loop]'):
 
@@ -246,6 +252,7 @@ def main(args):
         
         contrastive_round(
             encoder=encoder,
+            train_loader=train_loader,
             epoch=epoch,
             args=args,
             optimizer=simclr_optimizer, 

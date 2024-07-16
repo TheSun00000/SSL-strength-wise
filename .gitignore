@@ -4,3 +4,4 @@ jobs_logs
 __pycache__/
 .neptune
 tmp
+local

@@ -232,6 +232,21 @@ class RandomAugmentation(object):
         return img, transformations_details
 
 
+
+class CustomRandomResizedCrop(transforms.RandomResizedCrop):
+    def forward(self, img):
+        W, H = img.size[-2:]
+        i, j, h, w = self.get_params(img, self.scale, self.ratio)
+        # i, j, h, w = 16, 16, 32, 32
+        return vision_F.resized_crop(img, i, j, h, w, self.size, self.interpolation, antialias=self.antialias), (max(i,0), max(j, 0), min(i+h, H), min(j+w, W))
+
+
+class CustomRandomHorizontalFlip(transforms.RandomHorizontalFlip):
+    def forward(self, img):
+        if torch.rand(1) < self.p:
+            return vision_F.hflip(img), 1
+        return img, 0
+
 class Augmentation(object):
     def __init__(self, policies, dist):
         
