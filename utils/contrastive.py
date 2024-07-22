@@ -24,7 +24,7 @@ class InfoNCELoss(nn.Module):
         super(InfoNCELoss, self).__init__()
         self.CE = nn.CrossEntropyLoss(reduction=reduction)
 
-    def forward(self, z1: Tensor, z2: Tensor, temperature: float, return_positives:bool=False):
+    def forward(self, z1: Tensor, z2: Tensor, temperature: float, return_positives:bool=False, weights:Tensor=None):
         
         batch_size = z1.shape[0]
         
@@ -52,7 +52,14 @@ class InfoNCELoss(nn.Module):
         labels = torch.zeros(logits.shape[0], dtype=torch.long).to(device)
 
         logits = logits / temperature
-        loss = self.CE(logits, labels)
+        # loss = self.CE(logits, labels)
+        log_probs = F.log_softmax(logits, dim=1)
+        loss = -log_probs[:, 0]
+        
+        if weights is not None:
+            weights = torch.cat([weights, weights]).to(device)
+            loss = loss * weights
+        loss = loss.mean()
 
         if return_positives:
             return full_similarity_matrix, logits, loss, positives[:len(positives)//2]

@@ -14,6 +14,7 @@ from utils.networks import SimCLR, build_resnet18, build_resnet50
 from utils.contrastive import InfoNCELoss, knn_evaluation, top_k_accuracy, eval_loop, get_avg_loss
 from utils.transforms import get_transforms_list, NUM_DISCREATE, transformations_dict
 from utils.logs import init_neptune, get_model_save_path
+from utils.hardness_estimation import get_hardness_estimator, parts2vector
 import argparse
     
 
@@ -134,6 +135,7 @@ def contrastive_round(
         epoch: int,
         neptune_run,
         device,
+        estimator=None
     ):
     
     batch_size = args.simclr_bs
@@ -166,12 +168,16 @@ def contrastive_round(
         # Simclr:
         _, z1 = encoder(x1.to(device))
         _, z2 = encoder(x2.to(device))
+        
+        
+        weights = None
+        if estimator is not None:
+            vectors = list(map(parts2vector, details))
+            weights = estimator.predict(vectors)
+            weights = torch.tensor(weights)
+            weights = (1-weights)
 
-        sim, _, simclr_loss, positives = criterion(
-            z1, z2, 
-            temperature=0.5, 
-            return_positives=True
-        )
+        _, _, simclr_loss, positives = criterion(z1, z2, temperature=0.5, return_positives=True, weights=weights)
         
         optimizer.zero_grad()
         simclr_loss.backward()
@@ -192,10 +198,18 @@ def contrastive_round(
             for (details_1, details_2), sim in zip(details, positives):
                 details_1 = ' '.join(f'{trans} {val}' for trans, val in details_1)
                 details_2 = ' '.join(f'{trans} {val}' for trans, val in details_2)
-                file.write(f'{details_1},{details_2},{sim}\n')
+                file.write(f'{details_1};{details_2};{sim}\n')
         file.write('\n\n\n\n\n\n\n')
-                
+    
+    x1_x2, sims = [], []
+    for details, positives in collected_data:
+        for (x1, x2), sim in zip(details, positives):
+            x1_x2.append((x1, x2))
+            sims.append(sim)
+    
+    return x1_x2, sims
                         
+
 def main(args):
     
     
@@ -245,12 +259,14 @@ def main(args):
         args=args,
         batch_size=args.simclr_bs,
     )
+    
+    estimator = None
 
     for epoch in tqdm(range(start_epoch, args.epochs+1), desc='[Main Loop]'):
 
         print(f'EPOCH:{epoch}')
         
-        contrastive_round(
+        x1_x2, sims = contrastive_round(
             encoder=encoder,
             train_loader=train_loader,
             epoch=epoch,
@@ -259,8 +275,14 @@ def main(args):
             criterion=simclr_criterion, 
             neptune_run=neptune_run,
             device=device,
+            estimator=estimator
         )
-        
+    
+    
+        vectors = list(map(parts2vector, x1_x2))
+        estimator = get_hardness_estimator(vectors, sims, plot=False)
+        print('Estimator built!')
+                
 
         if  ((args.dataset in ['cifar10', 'svhn']) and epoch % 1 == 0) or \
             ((args.dataset in ['cifar100', 'TinyImagenet', 'stl10']) and epoch % 5 == 0):
