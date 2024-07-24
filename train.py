@@ -278,10 +278,11 @@ def main(args):
             estimator=estimator
         )
     
-    
-        vectors = list(map(parts2vector, x1_x2))
-        estimator = get_hardness_estimator(vectors, sims, plot=False)
-        print('Estimator built!')
+        if args.weights:
+            vectors = list(map(parts2vector, x1_x2))
+            print(len(vectors))
+            estimator = get_hardness_estimator(vectors, sims, plot=False)
+            print('Estimator built!')
                 
 
         if  ((args.dataset in ['cifar10', 'svhn']) and epoch % 1 == 0) or \
@@ -347,7 +348,8 @@ if __name__ == "__main__":
     parser.add_argument('--simclr_bs', type=int, default=512, help='Batch size for SimCLR training')
     parser.add_argument('--encoder_backbone', type=str, default='resnet50', choices=['resnet18', 'resnet50'], help='Encoder backbone architecture')
     parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'svhn', 'TinyImagenet', 'cifar100', 'stl10'], help='Pretraining dataset')
-
+    parser.add_argument('--weights', action='store_true')
+    
     parser.add_argument('--lr', type=float, default=0.03, help='Learning rate for contrastive training')
 
     parser.add_argument('--mode', type=str, default='debug', choices=['sync', 'async', 'debug'], help='Training mode')

@@ -14,4 +14,5 @@ CONDA_DIR=/share/apps/NYUAD5/miniconda/3-4.11.0
 CONDA_ENV=/home/nb3891/.conda/envs/contrastive_rl
 conda activate $CONDA_ENV
 
-python train.py --dataset cifar10 --simclr_bs 512 --mode async
+# python train.py --dataset cifar10 --simclr_bs 512 --mode async
+python train.py --dataset cifar10 --simclr_bs 512 --mode async --weights
