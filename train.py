@@ -173,9 +173,12 @@ def contrastive_round(
         weights = None
         if estimator is not None:
             vectors = list(map(parts2vector, details))
-            weights = estimator.predict(vectors)
-            weights = torch.tensor(weights)
-            weights = (1-weights)
+            estimated_cos = estimator.predict(vectors)
+            estimated_cos = torch.tensor(estimated_cos)
+            weights = (1-estimated_cos)
+            min, max, eps = weights.min(), weights.max(), 1e-5
+            weights = (weights - min) / (max - min) + eps
+            weights = weights / weights.sum()
 
         _, _, simclr_loss, positives = criterion(z1, z2, temperature=0.5, return_positives=True, weights=weights)
         
